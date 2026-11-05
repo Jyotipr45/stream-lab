@@ -1,4 +1,4 @@
-# StreamLab — Real-Time Kafka Event Processing System
+# StreamLab - Real-Time Kafka Event Processing System
 
 A small, hands-on lab for learning Apache Kafka and Kafka Streams through working experiments on simulated e-commerce order events.
 
