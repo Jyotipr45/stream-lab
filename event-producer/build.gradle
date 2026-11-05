@@ -1,0 +1,23 @@
+plugins {
+    id 'org.springframework.boot'
+    id 'io.spring.dependency-management'
+}
+
+description = 'Generates simulated order events and publishes them to Kafka'
+
+dependencies {
+    // Core Spring Boot (no web server - this app only produces messages).
+    implementation 'org.springframework.boot:spring-boot-starter'
+    // Jackson, including support for java.time types such as Instant.
+    implementation 'org.springframework.boot:spring-boot-starter-json'
+    // Spring for Apache Kafka: KafkaTemplate, KafkaAdmin, JsonSerializer. Brings kafka-clients.
+    implementation 'org.springframework.kafka:spring-kafka'
+
+    // JUnit 5, Mockito, AssertJ.
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    // Testcontainers: starts a real Kafka in Docker for integration tests.
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:kafka'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}

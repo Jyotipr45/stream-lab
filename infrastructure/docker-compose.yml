@@ -1,0 +1,49 @@
+# One Kafka node in KRaft mode (no ZooKeeper).
+# This single node is both a "broker" (stores messages) and a "controller"
+# (manages cluster metadata). Later experiments add more brokers for replication.
+#
+# Start:  docker compose -f infrastructure/docker-compose.yml up -d
+# Stop:   docker compose -f infrastructure/docker-compose.yml down   (also deletes all messages)
+
+name: streamlab
+
+services:
+  kafka:
+    image: apache/kafka:3.9.1          # same major/minor as the kafka-clients library Spring Boot 3.5 uses
+    container_name: streamlab-kafka
+    hostname: kafka
+    ports:
+      - "9092:9092"                    # your Java app connects to localhost:9092
+    environment:
+      # --- KRaft identity ---
+      KAFKA_NODE_ID: 1                                 # unique id of this node in the cluster
+      KAFKA_PROCESS_ROLES: broker,controller           # this node does both jobs
+      CLUSTER_ID: "5L6g3nShT-eMCtK--X86sw"             # fixed id so the cluster is recognisable across restarts
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093     # who votes on metadata: node 1 at kafka:9093
+
+      # --- Listeners: the "doors" Kafka opens ---
+      #   CONTROLLER     :9093  - internal KRaft voting traffic
+      #   PLAINTEXT      :19092 - traffic from other containers (address kafka:19092)
+      #   PLAINTEXT_HOST :9092  - traffic from your laptop (address localhost:9092)
+      KAFKA_LISTENERS: PLAINTEXT://:19092,CONTROLLER://:9093,PLAINTEXT_HOST://:9092
+      # The address Kafka tells clients to use after the first connection.
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:19092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      # --- Single-node settings (production uses 3) ---
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1        # internal topic that stores consumer offsets
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0        # consumers join groups without a 3s wait
+
+      # --- Learning settings ---
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"         # topics must be created on purpose, never by a typo
+      KAFKA_NUM_PARTITIONS: 3                          # default if a topic is created without --partitions
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 10s

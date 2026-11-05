@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: event-producer
+  main:
+    banner-mode: off
+  kafka:
+    # First address the producer contacts to discover the cluster.
+    bootstrap-servers: localhost:9092
+    producer:
+      # Kafka stores bytes. Serializers turn Java objects into bytes.
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      # Wait until the message is safely written before calling it "sent". Covered in the producer experiments.
+      acks: all
+      properties:
+        enable.idempotence: true          # no duplicates when the producer retries (Kafka's default, written here to be visible)
+        linger.ms: 5                      # wait up to 5 ms to fill a batch before sending
+        max.block.ms: 10000               # give up after 10 s if Kafka can't be reached (default is 60 s)
+        spring.json.add.type.headers: false   # plain JSON, no Java class name in headers
+
+logging:
+  level:
+    org.apache.kafka: WARN               # hide Kafka's long config dumps
+    com.jyoti.streamlab: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level %-22.22logger{0} : %msg%n"
+
+streamlab:
+  experiment: 1                          # which experiment runner to execute
+  orders-topic:
+    name: orders
+    partitions: 3
+    replicas: 1                          # 1 broker -> at most 1 copy
+  experiment1:
+    message-count: 10
