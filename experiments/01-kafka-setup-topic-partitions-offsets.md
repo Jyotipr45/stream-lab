@@ -1,6 +1,6 @@
 # Experiment 1 — Kafka in KRaft mode, a 3-partition topic, partitions and offsets
 
-**Goal:** start Kafka with Docker, create the `orders` topic with 3 partitions, publish 10 order events, and see exactly which partition and offset each one got.
+**Goal:** start Kafka with Docker, create the `orders.order.placed.v1` topic with 3 partitions, publish 10 order events, and see exactly which partition and offset each one got.
 
 Unknown word? See [docs/glossary.md](../docs/glossary.md).
 
@@ -30,9 +30,14 @@ Unknown word? See [docs/glossary.md](../docs/glossary.md).
 - In our compose file one node has both roles (`KAFKA_PROCESS_ROLES: broker,controller`). Fine for learning, never for production.
 
 ### Topic and partition
-- **What:** a topic is a named stream of events (`orders`). It is split into partitions: separate, ordered, append-only logs.
+- **What:** a topic is a named stream of events (`orders.order.placed.v1`). It is split into partitions: separate, ordered, append-only logs.
 - **Why it exists:** one log can only be written to and read from so fast, and must fit on one disk. Splitting into partitions lets several brokers and several consumers work in parallel.
-- **How it works inside:** each partition is a folder on the broker's disk (`orders-0`, `orders-1`, `orders-2`) containing *segment* files. New records are appended at the end. Nothing is edited in place.
+- **How it works inside:** each partition is a folder on the broker's disk (`orders.order.placed.v1-0`, `orders.order.placed.v1-1`, `orders.order.placed.v1-2`) containing *segment* files. New records are appended at the end. Nothing is edited in place.
+
+### Topic naming and ownership
+- Our topic is called `orders.order.placed.v1`: `<domain>.<entity>.<event>.<version>`. The name tells anyone who owns it (`orders` team), what's in it (an *order* was *placed*) and which message format version it carries (`v1`).
+- The producing service owns and declares the topic (`KafkaTopicConfig`), with its partitions, replicas and retention in `application.yml`. Topics are created from reviewed code, never by hand.
+- Full explanation of how companies manage hundreds of topics: [docs/topic-management.md](../docs/topic-management.md). Why ZooKeeper was replaced by KRaft: [docs/zookeeper-vs-kraft.md](../docs/zookeeper-vs-kraft.md).
 
 ### Offset
 - **What:** the position of a record in its partition: 0, 1, 2, ...
@@ -84,7 +89,7 @@ stream-lab/
 ```
 Experiment01Runner ──next()──▶ OrderEventGenerator
         │
-        └──publish(event)──▶ OrderEventPublisher ──send("orders", orderId, event)──▶ KafkaTemplate
+        └──publish(event)──▶ OrderEventPublisher ──send("orders.order.placed.v1", orderId, event)──▶ KafkaTemplate
                                                                                         │
                        serialize key+value → choose partition (murmur2) → add to batch ─┘
                                                                                         │
@@ -124,7 +129,7 @@ Experiment01Runner ──next()──▶ OrderEventGenerator
 | `linger.ms: 5` | Wait up to 5 ms to fill a batch. More batching = fewer requests. |
 | `max.block.ms: 10000` | If Kafka is unreachable, fail after 10 s instead of the default 60 s. Faster feedback while learning. |
 | `spring.json.add.type.headers: false` | Don't attach the Java class name as a header, so the JSON is readable by any language. |
-| `streamlab.orders-topic.*` | Name, 3 partitions, 1 replica. Read by `OrdersTopicProperties`. |
+| `streamlab.orders-topic.*` | Name `orders.order.placed.v1`, 3 partitions, 1 replica, 7-day retention. Read by `OrdersTopicProperties`, applied by `KafkaTopicConfig`. |
 | `streamlab.experiment: 1` | Which runner to execute. |
 
 ### `build.gradle`
@@ -154,7 +159,7 @@ The first run downloads the Kafka image (~400 MB) and Gradle dependencies, so it
 Keys and the partition count are fixed, and Kafka's hash is deterministic, so on a **fresh topic** you should see exactly this (time stamps differ):
 
 ```
-=== Experiment 1: sending 10 messages to topic 'orders' (3 partitions) ===
+=== Experiment 1: sending 10 messages to topic 'orders.order.placed.v1' (3 partitions) ===
 key=ORD-00001  customer=CUST-4  ->  partition=1  offset=0
 key=ORD-00002  customer=CUST-1  ->  partition=0  offset=0
 key=ORD-00003  customer=CUST-5  ->  partition=2  offset=0
@@ -202,32 +207,32 @@ CurrentVoters:          [{"id": 1, ...}]
 
 **b) Describe the topic**
 ```bat
-infrastructure\kafka.bat kafka-topics.sh --bootstrap-server localhost:9092 --describe --topic orders
+infrastructure\kafka.bat kafka-topics.sh --bootstrap-server localhost:9092 --describe --topic orders.order.placed.v1
 ```
 Expected:
 ```
-Topic: orders  TopicId: ...  PartitionCount: 3  ReplicationFactor: 1  Configs:
-    Topic: orders  Partition: 0  Leader: 1  Replicas: 1  Isr: 1
-    Topic: orders  Partition: 1  Leader: 1  Replicas: 1  Isr: 1
-    Topic: orders  Partition: 2  Leader: 1  Replicas: 1  Isr: 1
+Topic: orders.order.placed.v1  TopicId: ...  PartitionCount: 3  ReplicationFactor: 1  Configs: cleanup.policy=delete,retention.ms=604800000
+    Topic: orders.order.placed.v1  Partition: 0  Leader: 1  Replicas: 1  Isr: 1
+    Topic: orders.order.placed.v1  Partition: 1  Leader: 1  Replicas: 1  Isr: 1
+    Topic: orders.order.placed.v1  Partition: 2  Leader: 1  Replicas: 1  Isr: 1
 ```
 `Leader: 1` — broker 1 handles this partition. `Isr` = in-sync replicas (copies that are up to date). Both explained fully in the replication experiment.
 
 **c) Latest offset per partition** (after one run)
 ```bat
-infrastructure\kafka.bat kafka-get-offsets.sh --bootstrap-server localhost:9092 --topic orders
+infrastructure\kafka.bat kafka-get-offsets.sh --bootstrap-server localhost:9092 --topic orders.order.placed.v1
 ```
 Expected:
 ```
-orders:0:3
-orders:1:4
-orders:2:3
+orders.order.placed.v1:0:3
+orders.order.placed.v1:1:4
+orders.order.placed.v1:2:3
 ```
 Format is `topic:partition:nextOffset` — the offset the *next* record will get. It equals the number of records in that partition (as long as nothing was deleted).
 
 **d) Read the messages back, with partition, offset and key**
 ```bat
-infrastructure\kafka.bat kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic orders --from-beginning --property print.partition=true --property print.offset=true --property print.key=true --timeout-ms 5000
+infrastructure\kafka.bat kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic orders.order.placed.v1 --from-beginning --property print.partition=true --property print.offset=true --property print.key=true --timeout-ms 5000
 ```
 Expected (order between partitions may vary; inside one partition it never does):
 ```
@@ -239,7 +244,7 @@ Processed a total of 10 messages
 
 **e) Create a topic by hand** (what `KafkaTopicConfig` does for you)
 ```bat
-infrastructure\kafka.bat kafka-topics.sh --bootstrap-server localhost:9092 --create --topic orders-cli --partitions 3 --replication-factor 1
+infrastructure\kafka.bat kafka-topics.sh --bootstrap-server localhost:9092 --create --topic lab.cli-demo.created.v1 --partitions 3 --replication-factor 1
 infrastructure\kafka.bat kafka-topics.sh --bootstrap-server localhost:9092 --list
 ```
 
@@ -247,7 +252,10 @@ infrastructure\kafka.bat kafka-topics.sh --bootstrap-server localhost:9092 --lis
 ```bat
 docker exec streamlab-kafka sh -c "ls /tmp/kraft-combined-logs | grep orders"
 ```
-Expected: `orders-0  orders-1  orders-2`. Each partition really is a directory of log files.
+Expected: `orders.order.placed.v1-0  orders.order.placed.v1-1  orders.order.placed.v1-2`. Each partition really is a directory of log files.
+
+**Note:** if you ran Experiment 1 before the rename, an old `orders` topic still exists. Remove it with
+`infrastructure\kafka.bat kafka-topics.sh --bootstrap-server localhost:9092 --delete --topic orders`.
 
 **Stop Kafka**
 ```bat
@@ -263,8 +271,8 @@ docker compose -f infrastructure\docker-compose.yml down
 |---|---|---|---|
 | 1 | Stop Kafka (`docker stop streamlab-kafka`), then `gradlew.bat :event-producer:bootRun` | KafkaAdmin can't create the topic; `send()` waits `max.block.ms` (10 s) and fails with `TimeoutException: ... not present in metadata` | A producer can't send without metadata. In production, alert on this instead of retrying silently. |
 | 2 | `kafka-topics.sh ... --create --topic bad --partitions 3 --replication-factor 2` | `InvalidReplicationFactorException: Replication factor: 2 larger than available brokers: 1` | Copies must live on different brokers. |
-| 3 | `kafka-topics.sh ... --alter --topic orders --partitions 2` | `InvalidPartitionsException: Topic currently has 3 partitions, which is higher than the requested 2` | Partitions can only be *increased*. Removing one would delete data. |
-| 4 | `kafka-topics.sh ... --alter --topic orders --partitions 4`, then `run.bat 1` again | Some keys now land in a **different** partition than before (`hash % 4` ≠ `hash % 3`). | Adding partitions breaks "same key → same partition" for existing keys. Choose the partition count up front. |
+| 3 | `kafka-topics.sh ... --alter --topic orders.order.placed.v1 --partitions 2` | `InvalidPartitionsException: Topic currently has 3 partitions, which is higher than the requested 2` | Partitions can only be *increased*. Removing one would delete data. |
+| 4 | `kafka-topics.sh ... --alter --topic orders.order.placed.v1 --partitions 4`, then `run.bat 1` again | Some keys now land in a **different** partition than before (`hash % 4` ≠ `hash % 3`). | Adding partitions breaks "same key → same partition" for existing keys. Choose the partition count up front. |
 | 5 | Change `bootstrap-servers` to `localhost:9999` and run | Connection refused warnings, then timeout after 10 s | The bootstrap address must be reachable. |
 | 6 | In `docker-compose.yml`, change the host advertised listener to `PLAINTEXT_HOST://kafka:9092`, recreate, run | First connection works, then `UnknownHostException: kafka` / timeouts | Clients use the *advertised* address, not the one you typed. |
 
@@ -315,9 +323,9 @@ After 3 and 4, reset with `docker compose ... down` then `up -d`.
 
 Tick all of these, then tell me to start Experiment 2.
 
-- [ ] `test.bat` passes (7 tests: 3 generator, 1 publisher with Mockito, 3 Kafka integration with Testcontainers — integration needs Docker running).
+- [ ] `test.bat` passes (8 tests: 3 generator, 1 publisher with Mockito, 4 Kafka integration with Testcontainers — integration needs Docker running).
 - [ ] `run.bat 1` prints the table in section 5.
-- [ ] `kafka-get-offsets.sh` shows `orders:0:3  orders:1:4  orders:2:3` after one run.
+- [ ] `kafka-get-offsets.sh` shows `orders.order.placed.v1:0:3  orders.order.placed.v1:1:4  orders.order.placed.v1:2:3` after one run.
 - [ ] Second run: same partitions, offsets continued.
 - [ ] You tried at least failure scenarios 1, 3 and 4.
 - [ ] You can answer interview questions 2, 3 and 5 without looking.

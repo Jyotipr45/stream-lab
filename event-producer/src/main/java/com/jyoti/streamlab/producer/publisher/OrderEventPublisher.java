@@ -8,11 +8,19 @@ import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Service;
 
 /**
- * Sends order events to the orders topic.
+ * Publishes {@link OrderEvent}s to the order-placed topic ({@code orders.order.placed.v1}).
  *
- * KafkaTemplate.send() does not wait for Kafka. It puts the message in an in-memory
- * buffer and returns a future. A background thread sends the buffer to the broker.
- * When the broker answers, the future completes with the partition and offset.
+ * <p><b>Asynchronous send:</b> {@code KafkaTemplate.send()} does not wait for Kafka. It puts
+ * the record in an in-memory buffer and returns a future at once. A background sender thread
+ * ships the buffer to the broker in batches; when the broker answers, the future completes
+ * with the partition and offset (or fails with the error).
+ *
+ * <p><b>Key choice:</b> the key is the orderId, so every event of one order lands in the same
+ * partition and is read in the order it was written. Choose the key by "which events must stay
+ * in order?", not by convenience. A low-variety key (e.g. country) creates hot partitions.
+ *
+ * <p>The topic name is injected from configuration, never hard-coded, so renaming or
+ * versioning the topic is a config change.
  */
 @Service
 public class OrderEventPublisher {

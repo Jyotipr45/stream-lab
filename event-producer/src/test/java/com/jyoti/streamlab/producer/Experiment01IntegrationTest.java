@@ -2,17 +2,22 @@ package com.jyoti.streamlab.producer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jyoti.streamlab.producer.config.OrdersTopicProperties;
 import com.jyoti.streamlab.producer.generator.OrderEventGenerator;
 import com.jyoti.streamlab.producer.model.OrderEvent;
 import com.jyoti.streamlab.producer.publisher.OrderEventPublisher;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.Config;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.producer.RecordMetadata;
+import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.config.TopicConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -50,13 +55,29 @@ class Experiment01IntegrationTest {
     @Autowired
     private OrderEventPublisher publisher;
 
-    @Test
-    void topicIsCreatedWithThreePartitions() throws Exception {
-        try (AdminClient admin = AdminClient.create(kafkaAdmin.getConfigurationProperties())) {
-            TopicDescription orders = admin.describeTopics(List.of("orders"))
-                    .allTopicNames().get().get("orders");
+    @Autowired
+    private OrdersTopicProperties topicProps;
 
-            assertThat(orders.partitions()).hasSize(3);
+    @Test
+    void topicFollowsNamingConvention() {
+        // <domain>.<entity>.<event>.v<version>, lower case, dots between parts, hyphens inside a part.
+        assertThat(topicProps.name())
+                .isEqualTo("orders.order.placed.v1")
+                .matches("[a-z0-9-]+\\.[a-z0-9-]+\\.[a-z0-9-]+\\.v[0-9]+");
+    }
+
+    @Test
+    void topicIsCreatedWithThreePartitionsAndSevenDayRetention() throws Exception {
+        String topic = topicProps.name();
+        try (AdminClient admin = AdminClient.create(kafkaAdmin.getConfigurationProperties())) {
+            TopicDescription description = admin.describeTopics(List.of(topic))
+                    .allTopicNames().get().get(topic);
+            assertThat(description.partitions()).hasSize(3);
+
+            ConfigResource resource = new ConfigResource(ConfigResource.Type.TOPIC, topic);
+            Config config = admin.describeConfigs(List.of(resource)).all().get().get(resource);
+            assertThat(config.get(TopicConfig.RETENTION_MS_CONFIG).value())
+                    .isEqualTo(String.valueOf(Duration.ofDays(7).toMillis()));
         }
     }
 

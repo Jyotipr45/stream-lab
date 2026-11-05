@@ -13,7 +13,7 @@ Every term used in the experiments, in plain English. New terms are added as eac
 | **Client** | Any program that talks to Kafka: producers and consumers. |
 | **Producer** | A program that *writes* events to Kafka. Our `event-producer`. |
 | **Consumer** | A program that *reads* events from Kafka. Comes in Experiment 4–5. |
-| **Topic** | A named category of events, like a table name. Ours is `orders`. |
+| **Topic** | A named category of events, like a table name. Ours is `orders.order.placed.v1` (naming convention in [topic-management.md](topic-management.md)). |
 | **Partition** | A topic is split into partitions. Each partition is a separate, ordered, append-only log file. Partitions let Kafka spread load across brokers and readers. |
 | **Log** | A list you can only add to at the end. Old entries are never edited. |
 | **Offset** | The position number of a record *inside one partition*: 0, 1, 2, ... Each partition counts on its own. |

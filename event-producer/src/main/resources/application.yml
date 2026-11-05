@@ -27,9 +27,12 @@ logging:
 
 streamlab:
   experiment: 1                          # which experiment runner to execute
+  # Topic owned by this service. Naming convention: <domain>.<entity>.<event>.<version>
+  # (see docs/topic-management.md). Bump the version (v2) only for a breaking change in the message format.
   orders-topic:
-    name: orders
-    partitions: 3
-    replicas: 1                          # 1 broker -> at most 1 copy
+    name: orders.order.placed.v1
+    partitions: 3                        # max parallel consumers in one group; can grow, never shrink
+    replicas: 1                          # 1 broker -> at most 1 copy (production: 3)
+    retention: 7d                        # delete records older than 7 days
   experiment1:
     message-count: 10
