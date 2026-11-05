@@ -29,6 +29,22 @@ Run tests (Docker must be running):
 test.bat
 ```
 
+## Topics
+
+| Topic | Owner | Partitions | Retention | Key | Value |
+|---|---|---|---|---|---|
+| `orders.order.placed.v1` | `event-producer` | 3 | 7 days | orderId | `OrderEvent` (JSON) |
+
+Topic names follow `<domain>.<entity>.<event>.<version>`. Topics are declared in code and config, never created by hand. See [docs/topic-management.md](docs/topic-management.md).
+
+## Docs
+
+| Doc | What it covers |
+|---|---|
+| [glossary.md](docs/glossary.md) | Every term, in plain English |
+| [topic-management.md](docs/topic-management.md) | How product companies name, own, create, secure and monitor hundreds of topics |
+| [zookeeper-vs-kraft.md](docs/zookeeper-vs-kraft.md) | What ZooKeeper did, why Kafka replaced it with KRaft, and where KRaft shows in this lab |
+
 ## Experiments
 
 | # | Experiment | Guide |

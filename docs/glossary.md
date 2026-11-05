@@ -35,4 +35,13 @@ Every term used in the experiments, in plain English. New terms are added as eac
 | **Docker / container** | Docker runs software in an isolated box called a *container*. We run Kafka in one, so you don't install Kafka on Windows. |
 | **Docker Compose** | A YAML file describing containers to start together. |
 | **Testcontainers** | A Java library that starts Docker containers from inside a test. |
+| **Naming convention** | An agreed pattern for names. Our topics use `<domain>.<entity>.<event>.<version>`. |
+| **Retention** | How long Kafka keeps records before deleting them. Set per topic (`retention.ms`). Ours: 7 days. |
+| **Cleanup policy** | What Kafka does with old data: `delete` (drop records past retention) or `compact` (keep only the newest record per key). |
+| **Schema / Schema Registry** | A schema is the agreed structure of a message. A Schema Registry is a service that stores schemas and rejects changes that would break readers. |
+| **ACL** | Access control list: broker rules saying which application may read or write which topic. |
+| **Topics as code** | Declaring topics in reviewed files (Terraform, YAML, `NewTopic` beans) instead of creating them by hand. |
+| **ZooKeeper** | A separate coordination program older Kafka needed to store metadata and pick the controller. Removed in Kafka 4.0. See [zookeeper-vs-kraft.md](zookeeper-vs-kraft.md). |
+| **Raft** | An algorithm that lets several machines agree on an ordered log of decisions by majority vote. KRaft uses it. |
+| **`__cluster_metadata`** | The internal Kafka log where KRaft controllers record every metadata change. |
 | **Future (`CompletableFuture`)** | A Java object that will hold a result *later*. `send()` returns one immediately; it completes when Kafka answers. |
